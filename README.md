@@ -106,4 +106,78 @@ public class UserService {
     }
 }
 ```
-这个时候，Bean validation就派上用场了，可以优雅简洁的。
+这个时候，Bean validation就派上用场了，可以优雅简洁的完成任务。接下来我们就来尝试将这一系列if都替换掉。
+### 2. JSR 380 与依赖安装
+
+首先我们简单介绍一下技术背景。之前我们可以用各种方法去校验java bean，但是大家没有一个统一的规范。后来随着发展，大家总结出来一些标准，最开始作为 JSR 303 规范，后来进行了拓展，叫做 [JSR 380](https://jcp.org/en/jsr/detail?id=380)。
+
+要使用这个，我们先安装相关的依赖。
+第一个是[javax.validation:validation-api](https://mvnrepository.com/artifact/javax.validation/validation-api)，这个只是一个接口，并不包含实现，实际上也不用安装。
+```
+// https://mvnrepository.com/artifact/javax.validation/validation-api
+implementation 'javax.validation:validation-api:2.0.1.Final'
+```
+但是注意的是，这个依赖2.0.1以后的版本，已经迁移到[jakarta.validation](https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api)了，如果在其他项目看到名字不一样，不要感到奇怪。由于目前项目用的2.0.1 final的版本，这个session也是用这个。
+
+第二个是他的实现, [org.hibernate.validator:hibernate-validator](https://mvnrepository.com/artifact/org.hibernate.validator/hibernate-validator/6.1.5.Final)，它会自己安装好上边的依赖，这边版本也是我们当前项目用的。
+```
+// https://mvnrepository.com/artifact/org.hibernate.validator/hibernate-validator
+implementation 'org.hibernate.validator:hibernate-validator:6.1.6.Final'
+```
+
+这又是啥？
+```
+// https://mvnrepository.com/artifact/jakarta.el/jakarta.el-api
+implementation 'jakarta.el:jakarta.el-api:5.0.1'
+```
+
+### 3. 使用注解校验
+1. 这个对象的所有属性不能为空。
+
+我首先完成这个校验，属性不能为空，这样我想到了三个很像但是又有区别的注解。
+```java
+// @NotBlank
+// 注解修饰的元素不能为null，或者至少一个非空字符，支持CharSequence
+// @NotEmpty
+// 注解修饰的元素不能为null，或者空，支持的类型有CharSequence、Collection、Map、Array
+// @NotNull
+// 注解修饰的元素不能为null，支持任何类型。
+// TODO 再研究
+// @Deprecated
+```
+所以我们可以确定给这个类中成员变量加什么注解了。
+```java
+package com.example.demowithvalidation.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
+import java.time.Instant;
+import java.util.List;
+
+@Getter
+@Setter
+public class UserDTO {
+    @NotBlank
+    private String name;
+    @NotNull
+    private Integer age;
+    @NotNull
+    private Boolean gender;
+    @NotNull
+    private Instant birthDay;
+    @NotBlank
+    private String identityNumber;
+    @NotBlank
+    private String email;
+    @NotEmpty
+    private List<FriendDTO> friendDTOs;
+}
+
+```
+2. 名字必须在 2 到 4 个字之间。
+
+校验这个，我们可以使用
