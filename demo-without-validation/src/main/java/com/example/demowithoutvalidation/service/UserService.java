@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
 @Service
 public class UserService {
 
-    public static final String IDENTITY_NUMBER_REG = "(^\\d{15}$)|(^\\d{18}$)|(^\\d{17}(\\d|X|x)$)";
-    public static final String EMAIL_REG = "^([a-zA-Z0-9_-])+@([a-zA-Z0-9_-]{2,})+(.[a-zA-Z]{2,3})$";
+    public static final String IDENTITY_NUMBER_REG = "(\\d{15}$)|(^\\d{18}$)|(^\\d{17}(\\d[Xx])$)";
+    public static final String EMAIL_REG = "^([a-zA-Z0-9_-])+@[a-zA-Z0-9_-]{2,50}+(.[a-zA-Z]{2,3})$";
 
     public String createUser(UserDTO userDTO) {
         if (!(userDTO.getName().length() >= 2 && userDTO.getName().length() <= 4)) {
