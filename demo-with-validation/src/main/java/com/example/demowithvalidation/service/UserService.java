@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 public class UserService {
 
     public String createUser(UserDTO userDTO) {
+
+        System.out.println(userDTO.getName());
         // add your business...
         return "created";
     }

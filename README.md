@@ -31,7 +31,7 @@ public class UserDTO {
 ```
 然后我们要根据这个DTO来创建新用户，把对象中的信息存入到数据库中。但是在存之前，需要对其校验是否符合我们上面对需求。
 
-在用传统对方式来验证，就需要写很多的判断，非常麻烦；并且这些限制写在service中，当另一个人使用这个DTO中可能看不到这些限制。
+在用传统的方式来验证，就需要写很多的判断，非常麻烦；并且这些限制写在service中，当另一个人使用这个DTO中可能看不到这些限制。
 
 例如[UserService](demo-without-validation/src/main/java/com/example/demowithoutvalidation/service/UserService.java)，手动校验非常繁琐，很麻烦。
 ```java line-numbers
@@ -125,12 +125,6 @@ implementation 'javax.validation:validation-api:2.0.1.Final'
 implementation 'org.hibernate.validator:hibernate-validator:6.1.6.Final'
 ```
 
-这又是啥？
-```
-// https://mvnrepository.com/artifact/jakarta.el/jakarta.el-api
-implementation 'jakarta.el:jakarta.el-api:5.0.1'
-```
-
 ### 3. 使用注解校验
 ##### 1. 这个对象的所有属性不能为空。
 
@@ -172,10 +166,21 @@ public class UserDTO {
 ##### 2. 名字必须在 2 到 4 个字之间。
 
 校验这个，我们可以使用@Size来解决，其中mix是下限，max是上限，而且是闭区间。
+```java
+@NotBlank(message = "名字不能为空")
+@Size(min = 2, max = 4, message = "名字必须在 2 到 4 个字之间")
+private String name;
+```
 
 ##### 3. 年龄必须在 18 到 35 之间。
 
 这个可以用@Min和@Max来实现，value就是边界，而且是包含边界的。
+```java
+@NotNull(message = "年龄不能为空")
+@Min(value = 18, message = "年龄不能小于18岁")
+@Max(value = 35, message = "年龄不能大于35岁")
+private Integer age;
+```
 
 ##### 4. 性别只有生理性别(男|女)。
 
@@ -183,23 +188,195 @@ public class UserDTO {
 
 ##### 5. 生日必须是过去的日期。
 这个可以用@Past。类似的，如果想限制是变量是一个未来的日期，可以用@Future
+```java
+@NotNull(message = "生日不能为空")
+@Past(message = "生日必须过去的日期")
+private Instant birthDay;
+```
 
-##### 6. 身份证号必须符合格式（/(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d|X|x)$)/）。
+##### 6. 身份证号必须符合格式（/(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d[Xx])$)/）。
 
 这个我们同样用正则来校验，只不过是用@Pattern()的注解。
+```java
+@NotBlank(message = "身份证号不能为空")
+@Pattern(regexp = "(\\d{15}$)|(^\\d{18}$)|(^\\d{17}(\\d[Xx])$)", message = "身份证号不符合格式")
+private String identityNumber;
+```
 
 ##### 7. 身份证号上生日和性别段必须与上边填写的对应。
 
-这个我们暂且不表。
+这个我们暂且不表。后边也可以用[多字段联合校验](#mutilValid)解决
 
 ##### 8. email 必须符合格式（/^([a-zA-Z0-9_-])+@([a-zA-Z0-9_-]{2,})+(.[a-zA-Z]{2,3})$/）。
 
 这个我们可以用@Email来校验，这个注解的本质就是一个@Pattern(regexp = ".*")注解，所以我们还要用我们自己的规则去覆盖他。
 
+```java
+@NotBlank(message = "email不能为空")
+@Email(regexp = "^([a-zA-Z0-9_-])+@[a-zA-Z0-9_-]{2,50}+(.[a-zA-Z]{2,3})$", message = "email不符合格式")
+private String email;
+```
+
 这样除了第7条规则，其他的校验都覆盖，而且大部分的注解也都使用到了。除了@AssertFalse、@AssertTrue、@DecimalMax(value)、@DecimalMin(value)、@Digits(integer,fraction)
 这5个，其中@AssertFalse、@AssertTrue就是校验boolean和Boolean是否为false或者为true，没有什么好说的。
 
-而@DecimalMax(value)
+而@DecimalMax()、@DecimalMin()与@Max()、@Min()很像，唯一不同的是，它们支持String类型。注意到里面这个value也是String类型的，但是一定要符合数字的格式。并且这个value是可以写小数的。
+比如我们要加一个变量money，最多不能超过99.99，最少不能少于9.99，就可以这样写：
+
+```java
+@DecimalMax(value = "99.99")
+@DecimalMin(value = "9.99")
+private String money;
+```
+
+而 @Digits(integer,fraction) 则是限制一个小数的整数部分的位数和小数部分的位数，同样也支持String类型。
+
+### 4. 校验
+
+我们在bean中加入了注解，然后还需要让注解真正的生效。主要有两种方法
+
+1. [@Valid + BindingResult](demo-with-validation/src/main/java/com/example/demowithvalidation/controller/UserController.java)
+
+BindingResult 是 spring 对于 Hibernate-Validator的进一步封装，主要是处理约束违反信息。也就是当校验不通过时 所获取的默认的或者自定义的错误信息。
+
+2. [validator.validate()](demo-with-validation/src/main/java/com/example/demowithvalidation/controller/UserController.java)
+
+springboot 自动将 Validator加载到了IOC容器中，不需要进行配置，直接注入就可以使用。
+
+### 5.一些高级用法
+
+<a id="mutilValid"></a>
+1. 多字段联合校验
+
+这是一个很厉害的注解@ScriptAssert(lang, script, message)，可以满足我们第7条需求。
+ "7. 身份证号上生日和性别段必须与上边填写的对应。"
+可以将脚本写在里面，从而实现校验。可以看[UserDTO](demo-with-validation/src/main/java/com/example/demowithvalidation/dto/UserDTO.java)的实现，是调用了一个静态类。
+```java
+@ScriptAssert(
+        lang = "javascript",
+        script = "com.example.demowithvalidation.dto.UserDTO.identityNumberBeConsistentWithBirthdayAndGender(_this.identityNumber, _this.birthDay, _this.gender)",
+        message = "身份证号与生日、性别不符")
+```
+也可以写一个脚本来校验，比如要验证生日加年龄等于今年年份，可以用以下脚本。
+
+```java
+@ScriptAssert(lang = "javascript",
+        script = "_this.age + java.time.LocalDate.ofInstant(_this.birthDay, java.time.ZoneId.systemDefault()).getYear() == java.time.LocalDate.now().getYear()",
+        message = "生日与年龄不符")
+```
+当脚本比较多时，可以用@ScriptAssert.List，但是sonar好像不推荐这样用。
+```java
+@ScriptAssert.List({
+        @ScriptAssert(
+                lang = "javascript",
+                script = "com.example.demowithvalidation.dto.UserDTO.identityNumberBeConsistentWithBirthdayAndGender(_this.identityNumber, _this.birthDay, _this.gender)",
+                message = "身份证号与生日、性别不符"),
+        @ScriptAssert(lang = "javascript",
+                script = "_this.age + java.time.LocalDate.ofInstant(_this.birthDay, java.time.ZoneId.systemDefault()).getYear() == java.time.LocalDate.now().getYear()",
+                message = "生日与年龄不符")
+})
+```
+
+在使用中会有一个警告。
+
+```
+Warning: Nashorn engine is planned to be removed from a future JDK release
+```
+
+这个警告是因为使用脚本是需要当前类搜索路径中有 JSR 223 （Java 脚本平台）的实现才行，在 Java 14 之前 JDK 中自带 nashron 引擎，提供对 JavaScript 的支持，Java 14 之后可以考虑其他脚本引擎实现。
+
+
+2. 参数校验
+3. 
+注解除了可以加在bean的成员变量上，也可以加在方法参数上
+
+```java
+    void getMoneyTest() throws NoSuchMethodException {
+        ExecutableValidator executableValidator = validator.forExecutables();
+        Method happy = UserControllerTest.class.getMethod("getMoney", double.class);
+        double money = 0.0D;
+        Set<ConstraintViolation<Object>> methodViolations = executableValidator.validateParameters(this, happy, new Object[] {money});
+        for (ConstraintViolation<Object> violation : methodViolations) {
+            System.err.println(violation.getPropertyPath().toString() + violation.getMessage());
+        }
+    }
+    public void getMoney(@Positive double money){
+        System.out.printf("I got $ %.2f.", money);
+    }
+```
+
+3. 集合校验
+
+也集合元素添加校验注释，比如[UserDTO](demo-with-validation/src/main/java/com/example/demowithvalidation/dto/UserDTO.java)中的justStrings
+如果集合为空，是不会验证失败，但是如果集合中的字符串是空串" "，则会验证失败。
+
+```java
+private List<@NotBlank String> justStrings;
+```
+
+4. 多层校验
+
+校验也可以向下传递，比如[UserDTO](demo-with-validation/src/main/java/com/example/demowithvalidation/dto/UserDTO.java)有一个
+[FriendDTO](demo-with-validation/src/main/java/com/example/demowithvalidation/dto/FriendDTO.java)的列表。
+
+```java
+package com.example.demowithvalidation.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import javax.validation.constraints.NotBlank;
+
+@Getter
+@Setter
+public class FriendDTO {
+    @NotBlank
+    private String name;
+    @NotBlank
+    private String hairNumber;
+}
+```
+
+可以在面加上注解@Valid 将校验向下层传递。
+
+```java
+@Valid
+private List<FriendDTO> friendDTOs;
+```
+也可以利用加在泛型上
+
+```java
+private List<@Valid FriendDTO> friendDTOs;
+```
+
+5. 分组校验
+
+假如我们有个新需求，需要新加一个接口，这个接口是可以接受7到18岁的User的。为了满足这个需求，我们不需要重写一个DTO，重新加上注解校验，只需要使用分组校验就好。
+
+```java
+@Min(value = 18, message = "年龄不能小于18岁", groups = {GroupAdult.class})
+    @Max(value = 35, message = "年龄不能大于35岁", groups = {GroupAdult.class})
+    @Min(value = 7, message = "年龄不能小于7岁", groups = {GroupNoAdult.class})
+    @Max(value = 17, message = "年龄不能大于17岁", groups = {GroupNoAdult.class})
+    private Integer age;
+public interface GroupAdult{
+
+}
+
+public interface GroupNoAdult{
+
+}
+```
+
+但是@Valid是不支持分组校验的，我们要使用@Validated注解，其中的区别我们先不提。
+
+```java
+@PostMapping("/noAdult")
+    @ResponseStatus(HttpStatus.CREATED)
+    public String createNoAdultUser(@RequestBody @Validated(UserDTO.GroupNoAdult.class) UserDTO userDTO){
+        return userService.createUser(userDTO);
+    }
+```
 
 <a id="table"></a>
 ### 常用注解
