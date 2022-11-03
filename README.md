@@ -1,4 +1,4 @@
-# session-validation的使用
+# session——validation的使用
 ## 1. validation 基础使用——bean验证
 ### 1.传统的验证方式
 假设我们有这样一个[UserDTO](demo-without-validation/src/main/java/com/example/demowithoutvalidation/dto/UserDTO.java)。并且提出了如下需求：
@@ -132,20 +132,11 @@ implementation 'jakarta.el:jakarta.el-api:5.0.1'
 ```
 
 ### 3. 使用注解校验
-1. 这个对象的所有属性不能为空。
+##### 1. 这个对象的所有属性不能为空。
 
-我首先完成这个校验，属性不能为空，这样我想到了三个很像但是又有区别的注解。
-```java
-// @NotBlank
-// 注解修饰的元素不能为null，或者至少一个非空字符，支持CharSequence
-// @NotEmpty
-// 注解修饰的元素不能为null，或者空，支持的类型有CharSequence、Collection、Map、Array
-// @NotNull
-// 注解修饰的元素不能为null，支持任何类型。
-// TODO 再研究
-// @Deprecated
-```
-所以我们可以确定给这个类中成员变量加什么注解了。
+我首先完成这个需求的校验，我们可以看[常用注解](#table)表格，然后根据解释加入注解。
+
+其中，我们可以在注解中使用message加入提示信息。
 ```java
 package com.example.demowithvalidation.dto;
 
@@ -161,23 +152,74 @@ import java.util.List;
 @Getter
 @Setter
 public class UserDTO {
-    @NotBlank
+    @NotBlank(message = "名字不能为空")
     private String name;
-    @NotNull
+    @NotNull(message = "年龄不能为空")
     private Integer age;
-    @NotNull
+    @NotNull(message = "性别不能为空")
     private Boolean gender;
-    @NotNull
+    @NotNull(message = "生日不能为空")
     private Instant birthDay;
-    @NotBlank
+    @NotBlank(message = "身份证号不能为空")
     private String identityNumber;
-    @NotBlank
+    @NotBlank(message = "email不能为空")
     private String email;
-    @NotEmpty
+    @NotEmpty(message = "不能没有朋友")
     private List<FriendDTO> friendDTOs;
 }
 
 ```
-2. 名字必须在 2 到 4 个字之间。
+##### 2. 名字必须在 2 到 4 个字之间。
 
-校验这个，我们可以使用
+校验这个，我们可以使用@Size来解决，其中mix是下限，max是上限，而且是闭区间。
+
+##### 3. 年龄必须在 18 到 35 之间。
+
+这个可以用@Min和@Max来实现，value就是边界，而且是包含边界的。
+
+##### 4. 性别只有生理性别(男|女)。
+
+这个因为用boolean类型，没什么好说的。
+
+##### 5. 生日必须是过去的日期。
+这个可以用@Past。类似的，如果想限制是变量是一个未来的日期，可以用@Future
+
+##### 6. 身份证号必须符合格式（/(^\d{15}$)|(^\d{18}$)|(^\d{17}(\d|X|x)$)/）。
+
+这个我们同样用正则来校验，只不过是用@Pattern()的注解。
+
+##### 7. 身份证号上生日和性别段必须与上边填写的对应。
+
+这个我们暂且不表。
+
+##### 8. email 必须符合格式（/^([a-zA-Z0-9_-])+@([a-zA-Z0-9_-]{2,})+(.[a-zA-Z]{2,3})$/）。
+
+这个我们可以用@Email来校验，这个注解的本质就是一个@Pattern(regexp = ".*")注解，所以我们还要用我们自己的规则去覆盖他。
+
+这样除了第7条规则，其他的校验都覆盖，而且大部分的注解也都使用到了。除了@AssertFalse、@AssertTrue、@DecimalMax(value)、@DecimalMin(value)、@Digits(integer,fraction)
+这5个，其中@AssertFalse、@AssertTrue就是校验boolean和Boolean是否为false或者为true，没有什么好说的。
+
+而@DecimalMax(value)
+
+<a id="table"></a>
+### 常用注解
+
+| 注解      | 含义                                                        |
+|---------|-----------------------------------------------------------|
+| @NotBlank | 注解修饰的元素不能为null，或者至少一个非空字符，支持CharSequence                  |
+| @NotEmpty | 注解修饰的元素不能为null，或者空，支持的类型有CharSequence、Collection、Map、Array |
+| @NotNull | 注解修饰的元素不能为null，支持任何类型。                                    |
+| @Null   | 限制只能为null                                                 |
+|@AssertFalse|限制必须为false|
+|@AssertTrue|限制必须为true|
+|@DecimalMax(value)|限制必须为一个不大于指定值的数字|
+|@DecimalMin(value)|限制必须为一个不小于指定值的数字|
+|@Digits(integer,fraction)|限制必须为一个小数，且整数部分的位数不能超过integer，小数部分的位数不能超过fraction|
+|@Future|限制必须是一个将来的日期|
+|@Max(value)|限制必须为一个不大于指定值的数字|
+|@Min(value)|限制必须为一个不小于指定值的数字|
+|@Past|限制必须是一个过去的日期|
+|@Pattern(regexp)|限制必须符合指定的正则表达式|
+|@Size(max,min)|限制字符串长度必须在min到max之间|
+|@Past|验证注解的元素值（日期类型）比当前时间早|
+|@Email|验证注解的元素值是Email，也可以通过正则表达式和flag指定自定义的email格式|
