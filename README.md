@@ -400,3 +400,6 @@ public interface GroupNoAdult{
 |@Size(max,min)|限制字符串长度必须在min到max之间|
 |@Past|验证注解的元素值（日期类型）比当前时间早|
 |@Email|验证注解的元素值是Email，也可以通过正则表达式和flag指定自定义的email格式|
+
+
+# 预告：自定义注解及实现原理
